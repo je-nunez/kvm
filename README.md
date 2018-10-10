@@ -3,6 +3,11 @@
 Notes:
 
        systool -vm kvm
+        
+       Debugfs: /sys/kernel/debug/kvm/
+                /sys/kernel/debug/tracing/events/kvm/
+                   (e.g., `cat /sys/kernel/debug/tracing/events/kvm/${my_event_name}/filter`)
+                /sys/kernel/debug/tracing/events/kvmmmu/
 
 Stats (libvirt):
 
