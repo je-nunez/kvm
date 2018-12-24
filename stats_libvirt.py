@@ -5,6 +5,7 @@
 from __future__ import print_function
 import sys
 import libvirt
+import psutil
 
 
 def get_all_doms_stats(domain_list):
@@ -24,6 +25,29 @@ def get_all_doms_stats(domain_list):
         domain_stats[dom_name] = stats
 
     return domain_stats
+
+
+def is_load_acceptable():
+    """
+       Returns dictionary
+    """
+
+    acceptable_cpu_threshold = 90  # or dynamically at
+    acceptable_mem_threshold = 90  # run-time
+
+    # in this call we should use "interval=<N>" for a delay
+    cpu_load_pctg = psutil.cpu_percent(percpu=False)
+    mem_stats = psutil.virtual_memory()
+
+    is_ok = ((cpu_load_pctg < acceptable_cpu_threshold) and
+                (mem_stats.percent < acceptable_mem_threshold))
+    ret = {
+        "is_ok": is_ok,
+        "cpu": cpu_load_pctg,
+        "mem": mem_stats.percent
+    }
+
+    return ret
 
 
 def migrate(local_dom, dest_host):
@@ -52,6 +76,13 @@ def main():
        Main function.
     """
 
+    # dummy call to avoid warning at:
+    # https://psutil.readthedocs.io/en/latest/#psutil.cpu_percent
+    # "Warning the first time this function [cpu_percent] is called with
+    #  interval = 0.0 or None it will return a meaningless 0.0 value
+    #  which you are supposed to ignore."
+    psutil.cpu_percent(percpu=False)
+
     conn = libvirt.openReadOnly(None)
     if conn is None:
         sys.exit('Failed to open local connection')
@@ -75,11 +106,13 @@ def main():
                 print(dom_name + ' memory is ' + str(mem))
                 print(dom_name + ' cpu time is ' + str(accum_cpu_total))
 
-            sorted_by_stat = sorted(dom_stats.items(),
-                                    key=lambda kv: kv[1],
-                                    reverse=True)
-            print(str(sorted_by_stat))
-            # migrate(a_local_dom, to_a_less_busy_host)
+            state = is_load_acceptable()
+            if not state["is_ok"]:
+                sorted_by_stat = sorted(dom_stats.items(),
+                                        key=lambda kv: kv[1],
+                                        reverse=True)
+                print(str(sorted_by_stat))
+                # migrate(a_local_dom, to_a_less_busy_host)
     finally:
         conn.close()
 
